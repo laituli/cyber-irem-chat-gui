@@ -9,30 +9,32 @@ def create_app(backend: str = "mock", model: Optional[str] = None) -> gr.Blocks:
     chat_backend = ChatBackend(backend=backend, model=model)
 
     def transform_fn(text: str, n_variants: int):
-        """Transform text and return list of messages."""
+        """Transform text and return list of messages as HTML."""
         import asyncio
+        import base64
+        from pathlib import Path
         
         if not text.strip():
-            return "请输入文本"
+            return "<p>请输入文本</p>"
 
         messages = asyncio.run(chat_backend.transform(text, int(n_variants)))
 
-        # Format output
-        output = []
-        for i, msg in enumerate(messages, 1):
-            output.append(f"### 消息 {i}")
-            output.append(f"- **文本**: {msg.text}")
-            output.append(f"- **心情**: {msg.mood}")
-            if msg.kaomoji:
-                output.append(f"- **颜文字**: {msg.kaomoji}")
-            if msg.action:
-                output.append(f"- **动作**: {msg.action}")
-            if msg.suffix:
-                output.append(f"- **后缀**: {msg.suffix}")
-            output.append(f"- **完整显示**: {msg.display()}")
-            output.append("")
+        html = ['<div style="display:flex;flex-direction:column;gap:12px;">']
+        for msg in messages:
+            emote_html = ""
+            if msg.emote and Path(msg.emote).exists():
+                data = Path(msg.emote).read_bytes()
+                suffix = Path(msg.emote).suffix.lower().lstrip(".")
+                mime = {"jpg": "jpeg", "jpeg": "jpeg", "png": "png", "gif": "gif", "webp": "webp"}.get(suffix, "png")
+                b64 = base64.b64encode(data).decode()
+                emote_html = f'<img src="data:image/{mime};base64,{b64}" style="width:64px;height:64px;border-radius:8px;object-fit:cover;" />'
 
-        return "\n".join(output)
+            html.append(f'''<div style="display:flex;align-items:flex-start;gap:10px;background:#f8f0ff;border-radius:12px;padding:10px 14px;">
+  {emote_html}
+  <span style="line-height:1.6;font-size:15px;">{msg.display()}</span>
+</div>''')
+        html.append('</div>')
+        return "\n".join(html)
 
     with gr.Blocks(title="Cyber Irem - 猫娘聊天工具") as app:
         gr.Markdown("# 🐱 Cyber Irem - 猫娘聊天工具")
@@ -55,7 +57,7 @@ def create_app(backend: str = "mock", model: Optional[str] = None) -> gr.Blocks:
                 transform_btn = gr.Button("转换", variant="primary")
 
             with gr.Column():
-                output = gr.Markdown(label="转换结果", value="等待转换...")
+                output = gr.HTML(label="转换结果", value="<p>等待转换...</p>")
 
         transform_btn.click(
             fn=transform_fn,
