@@ -50,6 +50,18 @@ def create_app(backend: str = "mock", model: Optional[str] = None) -> gr.Blocks:
                     placeholder="输入要转换的文本...",
                     lines=3
                 )
+                gr.Examples(
+                    examples=[
+                        ["你好"],
+                        ["我好累"],
+                        ["今天天气真好"],
+                        ["你能帮我吗"],
+                        ["我想吃小鱼干"],
+                        ["做猫还是太难了"],
+                    ],
+                    inputs=input_text,
+                    label="快捷案例",
+                )
                 n_variants = gr.Slider(
                     minimum=1,
                     maximum=10,
