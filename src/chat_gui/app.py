@@ -17,7 +17,10 @@ def create_app(backend: str = "mock", model: Optional[str] = None) -> gr.Blocks:
         if not text.strip():
             return "<p>请输入文本</p>"
 
-        messages = asyncio.run(chat_backend.transform(text, int(n_variants)))
+        try:
+            messages = asyncio.run(chat_backend.transform(text, int(n_variants)))
+        except Exception as e:
+            return f"<p style='color:red;'>Error: {e}</p>"
 
         html = ['<div style="display:flex;flex-direction:column;gap:12px;">']
         for msg in messages:
@@ -76,14 +79,17 @@ def main():
     parser.add_argument("--backend", default="mock", choices=["mock", "ollama", "openai"])
     parser.add_argument("--model", default=None)
     parser.add_argument("--port", type=int, default=7860)
+    parser.add_argument("--host", default="0.0.0.0")
     args = parser.parse_args()
 
     app = create_app(backend=args.backend, model=args.model)
+
     print(f"\n🐱 Starting cyber-irem chat GUI...")
     print(f"📡 Backend: {args.backend}")
-    print(f"🌐 Open in browser: http://localhost:{args.port}\n", flush=True)
+    print(f"🌐 Open in browser: http://localhost:{args.port}")
+    print(f"🔗 External: http://<your-ip>:{args.port}\n", flush=True)
     sys.stdout.flush()
-    app.launch(server_port=args.port, inbrowser=False, share=False)
+    app.launch(server_name=args.host, server_port=args.port, inbrowser=False, share=False)
 
 
 if __name__ == "__main__":
