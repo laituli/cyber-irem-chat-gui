@@ -1,19 +1,21 @@
 """Gradio GUI for cyber-irem chat."""
 import gradio as gr
-import asyncio
+from typing import Optional
 from chat_gui.backend import ChatBackend
 
 
-def create_app(backend: str = "mock", model: str = None) -> gr.Blocks:
+def create_app(backend: str = "mock", model: Optional[str] = None) -> gr.Blocks:
     """Create the Gradio app."""
     chat_backend = ChatBackend(backend=backend, model=model)
 
-    async def transform_fn(text: str, n_variants: int):
+    def transform_fn(text: str, n_variants: int):
         """Transform text and return list of messages."""
+        import asyncio
+        
         if not text.strip():
             return "请输入文本"
 
-        messages = await chat_backend.transform(text, n_variants)
+        messages = asyncio.run(chat_backend.transform(text, int(n_variants)))
 
         # Format output
         output = []
@@ -53,7 +55,7 @@ def create_app(backend: str = "mock", model: str = None) -> gr.Blocks:
                 transform_btn = gr.Button("转换", variant="primary")
 
             with gr.Column():
-                output = gr.Markdown(label="转换结果")
+                output = gr.Markdown(label="转换结果", value="等待转换...")
 
         transform_btn.click(
             fn=transform_fn,
@@ -67,6 +69,7 @@ def create_app(backend: str = "mock", model: str = None) -> gr.Blocks:
 def main():
     """Run the Gradio app."""
     import argparse
+    import sys
     parser = argparse.ArgumentParser()
     parser.add_argument("--backend", default="mock", choices=["mock", "ollama", "openai"])
     parser.add_argument("--model", default=None)
@@ -74,7 +77,11 @@ def main():
     args = parser.parse_args()
 
     app = create_app(backend=args.backend, model=args.model)
-    app.launch(server_port=args.port)
+    print(f"\n🐱 Starting cyber-irem chat GUI...")
+    print(f"📡 Backend: {args.backend}")
+    print(f"🌐 Open in browser: http://localhost:{args.port}\n", flush=True)
+    sys.stdout.flush()
+    app.launch(server_port=args.port, inbrowser=False, share=False)
 
 
 if __name__ == "__main__":
