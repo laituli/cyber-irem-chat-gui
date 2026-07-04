@@ -20,16 +20,34 @@ class Message:
     emote: str = ""
 
     def display(self) -> str:
-        """Format message for display: action + text + suffix + kaomoji."""
+        """Format message for display: action + text + kaomoji.
+        
+        Clean format: (action) styled_text kaomoji
+        Avoids duplicates and empty brackets.
+        """
         parts = []
-        if self.action:
-            parts.append(self.action)
-        if self.text:
-            parts.append(self.text)
-        if self.suffix:
-            parts.append(self.suffix)
-        if self.kaomoji:
-            parts.append(self.kaomoji)
+        
+        # Action: ensure single parentheses, skip if empty
+        if self.action and self.action.strip():
+            action = self.action.strip()
+            # Remove existing parentheses to avoid double-wrapping
+            if action.startswith("(") and action.endswith(")"):
+                action = action[1:-1]
+            if action.startswith("（") and action.endswith("）"):
+                action = action[1:-1]
+            if action:
+                parts.append(f"({action})")
+        
+        # Text: styled text
+        if self.text and self.text.strip():
+            parts.append(self.text.strip())
+        
+        # Kaomoji: skip if empty or just brackets
+        if self.kaomoji and self.kaomoji.strip():
+            kaomoji = self.kaomoji.strip()
+            if kaomoji not in ("()", "（）", "( )"):
+                parts.append(kaomoji)
+        
         return " ".join(parts)
 
 
@@ -45,18 +63,23 @@ def _pick_emote() -> str:
 class ChatBackend:
     """Testable backend for cat-girl chat transformation."""
 
-    def __init__(self, backend: str = "ollama", model: Optional[str] = None):
+    def __init__(self, backend: str = "ollama", model: Optional[str] = None, temperature: float = 0.8):
         config = PipelineConfig.default()
         config.llm.backend = backend
+        config.llm.temperature = temperature
         if model:
             config.llm.model = model
         self.pipeline = CatgirlPipeline(config)
 
-    async def transform(self, text: str, n_variants: int = 3) -> list[Message]:
+    async def transform(self, text: str, n_variants: int = 3, strategy: str = "standard") -> list[Message]:
         """Transform text into multiple cat-girl message variants."""
         messages = []
         for _ in range(n_variants):
-            state = await self.pipeline.transform_full(text)
+            if strategy == "conservative":
+                # Conservative: simple replacement without LLM text transformation
+                state = await self._transform_conservative(text)
+            else:
+                state = await self.pipeline.transform_full(text, strategy=strategy)
             msg = Message(
                 text=state.get("styled_text", ""),
                 mood=state.get("mood", "neutral"),
@@ -67,3 +90,29 @@ class ChatBackend:
             )
             messages.append(msg)
         return messages
+
+    async def _transform_conservative(self, text: str) -> dict:
+        """Conservative transformation: only replace pronouns, no LLM text rewrite."""
+        # Simple pronoun replacement
+        styled = text.replace("我", "本喵")
+        if "你" in styled and "主人" not in styled:
+            styled = styled.replace("你", "主人", 1)
+        
+        # Analyze mood (still use LLM for this)
+        from chat_lib.prompts.irem_grammar import get_mood_analysis_prompt
+        from chat_lib.llm.ollama import OllamaLLM
+        llm = OllamaLLM(temperature=0.3)  # Low temperature for consistent mood
+        mood_prompt = get_mood_analysis_prompt(text)
+        mood_response = await llm.chat([{"role": "user", "content": mood_prompt}])
+        mood = mood_response.strip().lower()
+        valid_moods = {"happy", "sad", "surprised", "confused", "caring", "sleepy", "excited", "neutral"}
+        if mood not in valid_moods:
+            mood = "neutral"
+        
+        return {
+            "styled_text": styled,
+            "mood": mood,
+            "kaomoji": "",
+            "action": "",
+            "suffix": "",
+        }

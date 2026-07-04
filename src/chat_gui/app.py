@@ -8,7 +8,7 @@ def create_app(backend: str = "ollama", model: Optional[str] = None) -> gr.Block
     """Create the Gradio app."""
     chat_backend = ChatBackend(backend=backend, model=model)
 
-    async def transform_fn(text: str, n_variants: int):
+    def transform_fn(text: str, n_variants: int, temperature: float, strategy: str):
         """Transform text and return list of messages as HTML."""
         import base64
         from pathlib import Path
@@ -17,7 +17,10 @@ def create_app(backend: str = "ollama", model: Optional[str] = None) -> gr.Block
             return "<p>请输入文本</p>"
 
         try:
-            messages = await chat_backend.transform(text, int(n_variants))
+            # Create a new backend with the specified temperature
+            backend_with_temp = ChatBackend(backend=backend, model=model, temperature=temperature)
+            import asyncio
+            messages = asyncio.run(backend_with_temp.transform(text, int(n_variants), strategy=strategy))
         except Exception as e:
             import traceback
             error_msg = traceback.format_exc()
@@ -70,6 +73,19 @@ def create_app(backend: str = "ollama", model: Optional[str] = None) -> gr.Block
                     step=1,
                     label="生成变体数量"
                 )
+                temperature = gr.Slider(
+                    minimum=0.1,
+                    maximum=2.0,
+                    value=0.8,
+                    step=0.1,
+                    label="变化幅度（越高越激进）"
+                )
+                strategy = gr.Dropdown(
+                    choices=["conservative", "standard", "creative"],
+                    value="standard",
+                    label="翻译策略",
+                    info="保守: 仅替换自称 | 标准: 适度改写 | 创意: 完全重写"
+                )
                 transform_btn = gr.Button("转换", variant="primary")
 
             with gr.Column():
@@ -77,7 +93,7 @@ def create_app(backend: str = "ollama", model: Optional[str] = None) -> gr.Block
 
         transform_btn.click(
             fn=transform_fn,
-            inputs=[input_text, n_variants],
+            inputs=[input_text, n_variants, temperature, strategy],
             outputs=output
         )
 
