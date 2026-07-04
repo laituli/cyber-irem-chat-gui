@@ -45,7 +45,7 @@ def _pick_emote() -> str:
 class ChatBackend:
     """Testable backend for cat-girl chat transformation."""
 
-    def __init__(self, backend: str = "mock", model: Optional[str] = None):
+    def __init__(self, backend: str = "ollama", model: Optional[str] = None):
         config = PipelineConfig.default()
         config.llm.backend = backend
         if model:

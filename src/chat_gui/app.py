@@ -4,13 +4,12 @@ from typing import Optional
 from chat_gui.backend import ChatBackend
 
 
-def create_app(backend: str = "mock", model: Optional[str] = None) -> gr.Blocks:
+def create_app(backend: str = "ollama", model: Optional[str] = None) -> gr.Blocks:
     """Create the Gradio app."""
     chat_backend = ChatBackend(backend=backend, model=model)
 
-    def transform_fn(text: str, n_variants: int):
+    async def transform_fn(text: str, n_variants: int):
         """Transform text and return list of messages as HTML."""
-        import asyncio
         import base64
         from pathlib import Path
         
@@ -18,9 +17,11 @@ def create_app(backend: str = "mock", model: Optional[str] = None) -> gr.Blocks:
             return "<p>请输入文本</p>"
 
         try:
-            messages = asyncio.run(chat_backend.transform(text, int(n_variants)))
+            messages = await chat_backend.transform(text, int(n_variants))
         except Exception as e:
-            return f"<p style='color:red;'>Error: {e}</p>"
+            import traceback
+            error_msg = traceback.format_exc()
+            return f"<p style='color:red;'>Error: {e}</p><pre style='font-size:12px;color:#666;'>{error_msg}</pre>"
 
         html = ['<div style="display:flex;flex-direction:column;gap:12px;">']
         for msg in messages:
@@ -88,7 +89,7 @@ def main():
     import argparse
     import sys
     parser = argparse.ArgumentParser()
-    parser.add_argument("--backend", default="mock", choices=["mock", "ollama", "openai"])
+    parser.add_argument("--backend", default="ollama", choices=["ollama", "openai"])
     parser.add_argument("--model", default=None)
     parser.add_argument("--port", type=int, default=7860)
     parser.add_argument("--host", default="0.0.0.0")
@@ -101,6 +102,7 @@ def main():
     print(f"🌐 Open in browser: http://localhost:{args.port}")
     print(f"🔗 External: http://<your-ip>:{args.port}\n", flush=True)
     sys.stdout.flush()
+    app.queue()
     app.launch(server_name=args.host, server_port=args.port, inbrowser=False, share=False)
 
 
